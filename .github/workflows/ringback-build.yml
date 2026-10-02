@@ -24,6 +24,7 @@ jobs:
           git init -q --bare "$RUNNER_TEMP/hsluv.git"
           git -C "$RUNNER_TEMP/hsluv.git" fetch -q https://github.com/hsluv/hsluv-swift.git 9dee4378180f2a9a33c96bc20284cf64158dbe1b:refs/tags/2.1.0
           git config --global url."file://$RUNNER_TEMP/hsluv.git".insteadOf https://github.com/hsluv/hsluv-swift.git
+          mkdir -p Frameworks  # gitignored, so absent in a fresh clone; update-frameworks.sh cds into it
           /bin/bash ./update-frameworks.sh
           xcodebuild -resolvePackageDependencies -scmProvider system -project Snikket.xcodeproj -scheme Snikket \
             -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/DerivedData/SourcePackages \
