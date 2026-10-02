@@ -17,12 +17,22 @@ jobs:
           afinfo ringback.wav
       - uses: actions/upload-artifact@v4
         with: { name: ringback-wav, path: ringback.wav }
+      # Package.resolved pins hsluv-swift 2.1.0 at 9dee437, which upstream's history rewrite left unreachable,
+      # so a fresh clone fails. GitHub still serves it by hash; serve it locally under the 2.1.0 tag.
       - name: Fetch dependencies
-        run: ./scripts/snikket deps
+        run: |
+          git init -q --bare "$RUNNER_TEMP/hsluv.git"
+          git -C "$RUNNER_TEMP/hsluv.git" fetch -q https://github.com/hsluv/hsluv-swift.git 9dee4378180f2a9a33c96bc20284cf64158dbe1b:refs/tags/2.1.0
+          git config --global url."file://$RUNNER_TEMP/hsluv.git".insteadOf https://github.com/hsluv/hsluv-swift.git
+          /bin/bash ./update-frameworks.sh
+          xcodebuild -resolvePackageDependencies -scmProvider system -project Snikket.xcodeproj -scheme Snikket \
+            -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/DerivedData/SourcePackages \
+            -onlyUsePackageVersionsFromResolvedFile
+          ./Dependencies/apply-tigase-tls13-patch.sh build/DerivedData
       - name: Build for the iOS simulator (unsigned)
         run: |
           set -o pipefail
           xcodebuild -project Snikket.xcodeproj -scheme Snikket -configuration Debug \
             -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/DerivedData/SourcePackages \
-            -onlyUsePackageVersionsFromResolvedFile -destination 'generic/platform=iOS Simulator' \
+            -onlyUsePackageVersionsFromResolvedFile -scmProvider system -destination 'generic/platform=iOS Simulator' \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 CODE_SIGNING_ALLOWED=NO build | tail -40
