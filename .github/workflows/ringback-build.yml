@@ -1,0 +1,28 @@
+name: ringback-build
+on: { push: { branches: [ci-ringback] }, workflow_dispatch: {} }
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render the ringback the app would play
+        run: |
+          awk '/^class RingbackPlayer/,0' Snikket/voip/CallManager.swift > rb.swift
+          cat >> rb.swift <<'SWIFT'
+          extension RingbackPlayer { static func dump() { try! makeWav().write(to: URL(fileURLWithPath: "ringback.wav")) } }
+          RingbackPlayer.dump()
+          SWIFT
+          sed -i '' '1s/^/import AVFoundation\n/' rb.swift
+          swift rb.swift
+          afinfo ringback.wav
+      - uses: actions/upload-artifact@v4
+        with: { name: ringback-wav, path: ringback.wav }
+      - name: Fetch dependencies
+        run: ./scripts/snikket deps
+      - name: Build for the iOS simulator (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild -project Snikket.xcodeproj -scheme Snikket -configuration Debug \
+            -derivedDataPath build/DerivedData -clonedSourcePackagesDirPath build/DerivedData/SourcePackages \
+            -onlyUsePackageVersionsFromResolvedFile -destination 'generic/platform=iOS Simulator' \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 CODE_SIGNING_ALLOWED=NO build | tail -40
